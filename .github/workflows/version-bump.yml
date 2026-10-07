@@ -7,6 +7,8 @@ on:
 
 jobs:
   bump-version:
+    # Upstream-only: needs CE_ACCESS_TOKEN
+    if: github.repository == 'aranticlabs/bugpin'
     runs-on: ubuntu-latest
     permissions:
       contents: write

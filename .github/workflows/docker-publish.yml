@@ -13,6 +13,8 @@ env:
 
 jobs:
   build-and-push:
+    # Upstream-only: needs Harbor credentials and the private EE submodule
+    if: github.repository == 'aranticlabs/bugpin'
     runs-on: ubuntu-latest
     # Runs on: version tags only (v1.0.0 for production, v1.0.0-dev for development)
     permissions:
