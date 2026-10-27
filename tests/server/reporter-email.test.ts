@@ -29,7 +29,7 @@ const baseReport: Report = {
 
 function createSendEmailSpy() {
   return mock<(options: SendEmailOptions) => Promise<{ success: boolean }>>(() =>
-    Promise.resolve({ success: true }),
+    Promise.resolve({ success: true })
   );
 }
 
@@ -127,11 +127,12 @@ describe('emailService.sendReporterStatusChangeEmail', () => {
     const call = sendEmailSpy.mock.calls[0];
     const options = call[0];
     expect(options.html).toContain('We fixed the issue you reported.');
+    expect(options.html).toContain('Message from the team');
 
     emailService.sendEmail = originalSendEmail;
   });
 
-  it('hides message block when no reporterMessage', async () => {
+  it('omits message block when no reporterMessage', async () => {
     const sendEmailSpy = createSendEmailSpy();
     const originalSendEmail = emailService.sendEmail;
     emailService.sendEmail = sendEmailSpy;
@@ -148,9 +149,46 @@ describe('emailService.sendReporterStatusChangeEmail', () => {
     expect(sendEmailSpy).toHaveBeenCalled();
     const call = sendEmailSpy.mock.calls[0];
     const options = call[0];
-    expect(options.html).toContain('display: none');
+    expect(options.html).not.toContain('Message from the team');
+    expect(options.html).not.toContain('display: none');
 
     emailService.sendEmail = originalSendEmail;
+  });
+});
+
+describe('emailService.sendReporterAssignmentEmail', () => {
+  async function sendAssignment(previousAssigneeName?: string): Promise<string> {
+    const sendEmailSpy = createSendEmailSpy();
+    const originalSendEmail = emailService.sendEmail;
+    emailService.sendEmail = sendEmailSpy;
+    try {
+      await emailService.sendReporterAssignmentEmail('reporter@example.com', {
+        report: baseReport,
+        projectName: 'Project One',
+        appName: 'BugPin',
+        appUrl: 'https://app.example.com',
+        assigneeName: 'John',
+        previousAssigneeName,
+      });
+      expect(sendEmailSpy).toHaveBeenCalled();
+      return sendEmailSpy.mock.calls[0][0].html;
+    } finally {
+      emailService.sendEmail = originalSendEmail;
+    }
+  }
+
+  it('renders only the reassignment intro when a previous assignee exists', async () => {
+    const html = await sendAssignment('Jane');
+    expect(html).toContain('reassigned from <strong>Jane</strong>');
+    expect(html).not.toContain('has been assigned to');
+    expect(html).not.toContain('/admin/reports/');
+  });
+
+  it('renders only the first-assignment intro without a previous assignee', async () => {
+    const html = await sendAssignment();
+    expect(html).toContain('has been assigned to <strong>');
+    expect(html).not.toContain('reassigned from');
+    expect(html).not.toContain('/admin/reports/');
   });
 });
 

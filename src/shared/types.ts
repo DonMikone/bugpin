@@ -677,6 +677,18 @@ export type CustomEmailTemplates = Partial<{
   [K in EmailTemplateType]: Partial<Record<LocaleCode, EmailTemplate>>;
 }>;
 
+/**
+ * HTML comment markers embedded in default email templates. The server uses them to inject
+ * the footer and brand logo; the admin editor uses the content markers to find the editable part.
+ */
+export const EMAIL_TEMPLATE_MARKERS = {
+  brandStart: '<!--bugpin:brand-start-->',
+  brandEnd: '<!--bugpin:brand-end-->',
+  contentStart: '<!--bugpin:content-start-->',
+  contentEnd: '<!--bugpin:content-end-->',
+  footer: '<!--bugpin:footer-->',
+} as const;
+
 export interface EmailTemplates {
   newReport: EmailTemplate;
   statusChange: EmailTemplate;

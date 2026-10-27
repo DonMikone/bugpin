@@ -1,11 +1,25 @@
 import type { Result } from '../utils/result.js';
 
+/**
+ * Conditional sections: `{{#if path}}…{{/if}}` and `{{#if path}}…{{else}}…{{/if}}`.
+ * Nesting is not supported.
+ */
+const SECTION_PATTERN =
+  /\{\{#if (\w+(?:\.\w+)*)\}\}([\s\S]*?)(?:\{\{else\}\}([\s\S]*?))?\{\{\/if\}\}/g;
+
 export const templateService = {
   /**
-   * Compile a template string by replacing {{variable.path}} placeholders with values from data
+   * Compile a template string: resolve {{#if}} sections, then replace {{variable.path}}
+   * placeholders with HTML-escaped values from data. Sections are evaluated on the template
+   * only, so user-provided values are never interpreted as sections.
    */
   compileTemplate(template: string, data: Record<string, unknown>): string {
-    return template.replace(/\{\{(\w+(?:\.\w+)*)\}\}/g, (match, path: string) => {
+    const withSections = template.replace(
+      SECTION_PATTERN,
+      (_match, path: string, whenTrue: string, whenFalse?: string) =>
+        isTruthy(getNestedValue(data, path)) ? whenTrue : (whenFalse ?? '')
+    );
+    return withSections.replace(/\{\{(\w+(?:\.\w+)*)\}\}/g, (match, path: string) => {
       const value = getNestedValue(data, path);
       if (value === undefined) return match;
       const escaped = escapeHtml(String(value));
@@ -55,6 +69,10 @@ export const templateService = {
   },
 };
 
+function isTruthy(value: unknown): boolean {
+  return value !== undefined && value !== null && value !== false && value !== '' && value !== 0;
+}
+
 /**
  * Get a nested value from an object using dot notation
  * e.g., getNestedValue({ a: { b: 1 } }, 'a.b') => 1
@@ -79,7 +97,7 @@ function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
 /**
  * Escape HTML special characters to prevent XSS
  */
-function escapeHtml(text: string): string {
+export function escapeHtml(text: string): string {
   const map: Record<string, string> = {
     '&': '&amp;',
     '<': '&lt;',

@@ -3,10 +3,13 @@ import { reporterMessageHtml } from '../styles.js';
 
 const es: EmailTemplate = {
   subject: 'Mensaje sobre tu informe de error: {{report.title}}',
-  html: reporterMessageHtml({
-    headerTitle: 'Mensaje sobre tu informe',
-    intro: '<strong>{{sender.name}}</strong> te ha enviado un mensaje sobre tu informe de error.',
-  }),
+  html: reporterMessageHtml(
+    {
+      headerTitle: 'Mensaje sobre tu informe',
+      intro: '<strong>{{sender.name}}</strong> te ha enviado un mensaje sobre tu informe de error.',
+    },
+    'es'
+  ),
 };
 
 export default es;

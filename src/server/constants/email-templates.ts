@@ -1,11 +1,14 @@
-import type { EmailTemplateType } from '@shared/types';
+import { EMAIL_TEMPLATE_MARKERS, type AppSettings, type EmailTemplateType } from '@shared/types';
 import { defaultEmailTemplates as defaultsByLocale } from '../i18n/email-defaults/index.js';
+import { EMAIL_FONT } from '../i18n/email-defaults/layout.js';
+import { escapeHtml, templateService } from '../services/template.service.js';
 
 export { defaultsByLocale as defaultEmailTemplates };
 
-const BRAND_COLOR_PLACEHOLDER = '__BRAND_COLOR__';
-
 export const DEFAULT_BRAND_COLOR = '#02658D';
+
+const LIGHT_TEXT = '#ffffff';
+const DARK_TEXT = '#111827';
 
 function darkenColor(hex: string, percent: number = 15): string {
   const color = hex.replace('#', '');
@@ -16,34 +19,129 @@ function darkenColor(hex: string, percent: number = 15): string {
   return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
 }
 
+function relativeLuminance(hex: string): number | null {
+  const match = /^#([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!match) return null;
+  const num = parseInt(match[1], 16);
+  const [r, g, b] = [num >> 16, (num >> 8) & 0xff, num & 0xff].map((channel) => {
+    const c = channel / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function contrastRatio(a: number, b: number): number {
+  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+}
+
+/**
+ * Text color (white or near-black) with the higher WCAG contrast against the given background.
+ * Ties and invalid input resolve to white.
+ */
+export function getContrastTextColor(hex: string): typeof LIGHT_TEXT | typeof DARK_TEXT {
+  const background = relativeLuminance(hex);
+  if (background === null) return LIGHT_TEXT;
+  const dark = relativeLuminance(DARK_TEXT) as number;
+  return contrastRatio(background, dark) > contrastRatio(background, 1) ? DARK_TEXT : LIGHT_TEXT;
+}
+
 export function applyBrandColor(html: string, primaryColor: string): string {
   const hoverColor = darkenColor(primaryColor);
   return html
     .replace(/__BRAND_COLOR__/g, primaryColor)
-    .replace(/__BRAND_COLOR_HOVER__/g, hoverColor);
+    .replace(/__BRAND_COLOR_HOVER__/g, hoverColor)
+    .replace(/__BRAND_TEXT_COLOR__/g, getContrastTextColor(primaryColor));
 }
 
-function getEmailFooterHtml(): string {
-  return `
-    <div class="footer">
-      <p style="margin: 0;">&copy; ${new Date().getFullYear()} <a href="https://bugpin.io">BugPin</a> | <a href="https://github.com/aranticlabs/bugpin">GitHub</a></p>
-    </div>
-`;
+function getFooterInnerHtml(templateType: EmailTemplateType): string {
+  const small = `font-family:${EMAIL_FONT};font-size:12px;line-height:18px;`;
+  const base = `<p style="margin:0;${small}color:#9ca3af;">&copy; ${new Date().getFullYear()} <a href="https://bugpin.io" style="color:#6b7280;text-decoration:underline;">BugPin</a> &middot; <a href="https://github.com/aranticlabs/bugpin" style="color:#6b7280;text-decoration:underline;">GitHub</a></p>`;
+  if (templateType !== 'invitation') return base;
+  return (
+    `<p style="margin:0 0 4px 0;${small}color:#6b7280;">If the button doesn't work, copy and paste this link into your browser:</p>` +
+    `<p style="margin:0 0 16px 0;${small}color:#6b7280;word-break:break-all;"><a href="{{invite.url}}" style="color:#374151;text-decoration:underline;">{{invite.url}}</a></p>` +
+    base
+  );
 }
 
-function getInvitationFooterHtml(): string {
-  return `
-    <div class="footer">
-      <p style="margin: 0;">If the button doesn't work, copy and paste this link into your browser:</p>
-      <p style="margin: 5px 0 0 0; word-break: break-all;"><a href="{{invite.url}}" style="color: ${BRAND_COLOR_PLACEHOLDER};">{{invite.url}}</a></p>
-      <p style="margin: 15px 0 0 0;">&copy; ${new Date().getFullYear()} <a href="https://bugpin.io">BugPin</a> | <a href="https://github.com/aranticlabs/bugpin">GitHub</a></p>
-    </div>
-`;
+/**
+ * Insert the footer. Templates with the footer marker get the footer at the marker; legacy
+ * custom templates (div layout) get a `.footer` div before the closing container div.
+ * When `data` is given, footer variables (e.g. `{{invite.url}}`) are compiled.
+ */
+export function appendFooterToHtml(
+  html: string,
+  templateType: EmailTemplateType,
+  data?: Record<string, unknown>
+): string {
+  const raw = getFooterInnerHtml(templateType);
+  const footer = data ? templateService.compileTemplate(raw, data) : raw;
+  if (html.includes(EMAIL_TEMPLATE_MARKERS.footer)) {
+    return html.replace(EMAIL_TEMPLATE_MARKERS.footer, () => footer);
+  }
+  return html.replace(
+    /(\s*<\/div>\s*<\/body>\s*<\/html>\s*)$/i,
+    (closing: string) => `<div class="footer">${footer}</div>${closing}`
+  );
 }
 
-export function appendFooterToHtml(html: string, templateType: EmailTemplateType): string {
-  const footer = templateType === 'invitation' ? getInvitationFooterHtml() : getEmailFooterHtml();
-  return html.replace(/(\s*<\/div>\s*<\/body>\s*<\/html>\s*)$/i, `${footer}$1`);
+/**
+ * Absolute logo URL usable in emails, or null. Only raster formats are allowed because SVG and
+ * WebP are unreliable in Gmail/Outlook. Relative URLs need an app URL to be resolved.
+ */
+export function resolveEmailLogoUrl(
+  logoUrl: string | null | undefined,
+  appUrl: string | null | undefined
+): string | null {
+  if (!logoUrl) return null;
+  const path = logoUrl.split(/[?#]/)[0];
+  if (!/\.(png|jpe?g|gif)$/i.test(path)) return null;
+  if (/^https?:\/\//i.test(logoUrl)) return logoUrl;
+  if (!appUrl) return null;
+  return `${appUrl.replace(/\/+$/, '')}${logoUrl.startsWith('/') ? '' : '/'}${logoUrl}`;
+}
+
+export interface EmailBranding {
+  primaryColor: string;
+  appName: string;
+  logoUrl: string | null;
+}
+
+/** Replace the app name between the brand markers with the logo image, if a logo is set. */
+export function applyBrandMark(
+  html: string,
+  branding: Pick<EmailBranding, 'appName' | 'logoUrl'>
+): string {
+  if (!branding.logoUrl) return html;
+  const { brandStart, brandEnd } = EMAIL_TEMPLATE_MARKERS;
+  const start = html.indexOf(brandStart);
+  const end = start === -1 ? -1 : html.indexOf(brandEnd, start + brandStart.length);
+  if (start === -1 || end === -1) return html;
+  const img = `<img src="${escapeHtml(branding.logoUrl)}" alt="${escapeHtml(branding.appName)}" height="32" style="display:block;height:32px;width:auto;max-width:200px;border:0;outline:none;text-decoration:none;">`;
+  return `${html.slice(0, start + brandStart.length)}${img}${html.slice(end)}`;
+}
+
+export function getEmailBranding(
+  settings: Pick<AppSettings, 'appName' | 'appUrl' | 'branding'>
+): EmailBranding {
+  return {
+    primaryColor: settings.branding?.primaryColor || DEFAULT_BRAND_COLOR,
+    appName: settings.appName || 'BugPin',
+    logoUrl: resolveEmailLogoUrl(settings.branding?.logoLightUrl, settings.appUrl),
+  };
+}
+
+/** Final rendering step for every outgoing email: footer, logo, brand colors. */
+export function finalizeEmailHtml(
+  compiledHtml: string,
+  templateType: EmailTemplateType,
+  branding: EmailBranding,
+  data?: Record<string, unknown>
+): string {
+  return applyBrandColor(
+    applyBrandMark(appendFooterToHtml(compiledHtml, templateType, data), branding),
+    branding.primaryColor
+  );
 }
 
 export function getSampleDataForTemplate(

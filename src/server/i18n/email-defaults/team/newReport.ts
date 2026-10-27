@@ -1,48 +1,28 @@
 import type { TeamTemplateDefaults } from '@shared/types';
-import { emailStyles, BRAND_COLOR_PLACEHOLDER } from '../styles.js';
+import { emailBadge, emailDetails, emailHeading, emailLayout, emailParagraph } from '../layout.js';
 
 export const newReport: TeamTemplateDefaults = {
   en: {
     subject: '[{{project.name}}] New Bug Report: {{report.title}}',
-    html: `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <style>${emailStyles}</style>
-</head>
-<body>
-  <div class="container">
-    <div class="header">
-      <h1 style="margin: 0; font-size: 24px;">New {{app.name}} Report</h1>
-      <p style="margin: 10px 0 0 0; opacity: 0.9;">{{project.name}}</p>
-    </div>
-    <div class="content">
-      <h2 style="margin-top: 0;">{{report.title}}</h2>
-      <p>{{report.description}}</p>
-
-      <div class="meta">
-        <div class="meta-row">
-          <span class="label">Status:</span>
-          <span class="badge badge-status">{{report.statusFormatted}}</span>
-        </div>
-        <div class="meta-row">
-          <span class="label">Priority:</span>
-          <span class="badge badge-priority">{{report.priorityFormatted}}</span>
-        </div>
-        <div class="meta-row">
-          <span class="label">URL:</span>
-          <span style="color: ${BRAND_COLOR_PLACEHOLDER}; word-break: break-all;">{{report.pageUrl}}</span>
-        </div>
-        <div class="meta-row">
-          <span class="label">Reported:</span>
-          <span>{{report.createdAt}}</span>
-        </div>
-      </div>
-
-      <a href="{{report.url}}" class="button" style="color: white;">View Report</a>
-    </div>
-  </div>
-</body>
-</html>`,
+    html: emailLayout({
+      lang: 'en',
+      eyebrow: 'New Report',
+      contentHtml: [
+        emailHeading('{{report.title}}'),
+        `{{#if report.description}}${emailParagraph('{{report.description}}')}{{/if}}`,
+        emailDetails([
+          { label: 'Project', valueHtml: '{{project.name}}' },
+          { label: 'Status', valueHtml: emailBadge('{{report.statusFormatted}}') },
+          { label: 'Priority', valueHtml: emailBadge('{{report.priorityFormatted}}') },
+          {
+            label: 'Page URL',
+            valueHtml: '<span style="word-break:break-all;">{{report.pageUrl}}</span>',
+            when: 'report.pageUrl',
+          },
+          { label: 'Reported', valueHtml: '{{report.createdAt}}' },
+        ]),
+      ].join('\n'),
+      cta: { label: 'View Report', href: '{{report.url}}', when: 'report.url' },
+    }),
   },
 };

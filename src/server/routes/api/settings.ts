@@ -7,9 +7,8 @@ import { templateService } from '../../services/template.service.js';
 import {
   defaultEmailTemplates,
   getSampleDataForTemplate,
-  appendFooterToHtml,
-  applyBrandColor,
-  DEFAULT_BRAND_COLOR,
+  finalizeEmailHtml,
+  getEmailBranding,
 } from '../../constants/email-templates.js';
 import { authMiddleware, authorize } from '../../middleware/auth.js';
 import { validate, schemas } from '../../middleware/validate.js';
@@ -196,10 +195,11 @@ settings.post(
 
       const compiledSubject = templateService.compileTemplate(subject, sampleData);
       const compiledHtml = templateService.compileTemplate(html, sampleData);
-      const withFooter = appendFooterToHtml(compiledHtml, type as EmailTemplateType);
-      const finalHtml = applyBrandColor(
-        withFooter,
-        settings.branding?.primaryColor || DEFAULT_BRAND_COLOR
+      const finalHtml = finalizeEmailHtml(
+        compiledHtml,
+        type as EmailTemplateType,
+        getEmailBranding(settings),
+        sampleData
       );
 
       return c.json({
@@ -286,10 +286,11 @@ settings.post(
 
       const compiledSubject = templateService.compileTemplate(subject, sampleData);
       const compiledHtml = templateService.compileTemplate(html, sampleData);
-      const withFooter = appendFooterToHtml(compiledHtml, type as EmailTemplateType);
-      const finalHtml = applyBrandColor(
-        withFooter,
-        appSettings.branding?.primaryColor || DEFAULT_BRAND_COLOR
+      const finalHtml = finalizeEmailHtml(
+        compiledHtml,
+        type as EmailTemplateType,
+        getEmailBranding(appSettings),
+        sampleData
       );
 
       // Send the email

@@ -126,13 +126,38 @@ describe('emailService.sendEmail', () => {
     expect(result.success).toBe(false);
     expect(result.error).toContain('fail');
   });
+
+  it('derives a plain-text part from the HTML when no text is given', async () => {
+    await emailService.sendEmail({
+      to: [{ email: 'test@example.com' }],
+      subject: 'Subject',
+      html: '<h1>Hello</h1><p>World</p>',
+    });
+
+    const text = (sendMail.mock.calls[0] as unknown as [{ text: string }])[0].text;
+    expect(text).toContain('Hello');
+    expect(text).toContain('World');
+    expect(text).not.toContain('<');
+  });
+
+  it('passes an explicit text part through unchanged', async () => {
+    await emailService.sendEmail({
+      to: [{ email: 'test@example.com' }],
+      subject: 'Subject',
+      html: '<p>hi</p>',
+      text: 'custom',
+    });
+
+    const text = (sendMail.mock.calls[0] as unknown as [{ text: string }])[0].text;
+    expect(text).toBe('custom');
+  });
 });
 
 describe('emailService.sendTestEmail', () => {
   it('rejects missing host and from fields', async () => {
     const result = await emailService.sendTestEmail(
       { host: '', port: 587, from: '' },
-      'recipient@example.com',
+      'recipient@example.com'
     );
     expect(result.success).toBe(false);
   });
@@ -144,7 +169,7 @@ describe('emailService.sendTestEmail', () => {
 
     const result = await emailService.sendTestEmail(
       { host: 'smtp.example.com', port: 587, from: 'no-reply@example.com' },
-      'recipient@example.com',
+      'recipient@example.com'
     );
     expect(result.success).toBe(false);
   });
@@ -153,7 +178,7 @@ describe('emailService.sendTestEmail', () => {
     const result = await emailService.sendTestEmail(
       { host: 'smtp.example.com', port: 587, from: 'no-reply@example.com' },
       'recipient@example.com',
-      'BugPin',
+      'BugPin'
     );
     expect(result.success).toBe(true);
     expect(verify).toHaveBeenCalled();

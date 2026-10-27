@@ -4,10 +4,10 @@ import { logger } from '../utils/logger.js';
 import { templateService } from './template.service.js';
 import {
   defaultEmailTemplates,
-  appendFooterToHtml,
-  applyBrandColor,
-  DEFAULT_BRAND_COLOR,
+  finalizeEmailHtml,
+  getEmailBranding,
 } from '../constants/email-templates.js';
+import { htmlToPlainText } from '../utils/email-text.js';
 import { getEEHooks } from '../utils/ee-hooks.js';
 import { getStatusLabel, getPriorityLabel, formatReportDate } from '../i18n/labels.js';
 import type {
@@ -125,6 +125,7 @@ export const emailService = {
       // Send individual emails per recipient in batches to avoid overwhelming the SMTP server
       const fromAddress = `"${settings.appName || 'BugPin'}" <${settings.smtpConfig.from}>`;
       const batchSize = 10;
+      const text = options.text ?? htmlToPlainText(options.html);
 
       for (let i = 0; i < options.to.length; i += batchSize) {
         const batch = options.to.slice(i, i + batchSize);
@@ -135,7 +136,7 @@ export const emailService = {
               to: recipient.name ? `"${recipient.name}" <${recipient.email}>` : recipient.email,
               subject: options.subject,
               html: options.html,
-              text: options.text,
+              text,
             })
           )
         );
@@ -214,11 +215,7 @@ export const emailService = {
 
     const subject = templateService.compileTemplate(template.subject, templateData);
     const compiledHtml = templateService.compileTemplate(template.html, templateData);
-    const withFooter = appendFooterToHtml(compiledHtml, 'newReport');
-    const html = applyBrandColor(
-      withFooter,
-      settings.branding?.primaryColor || DEFAULT_BRAND_COLOR
-    );
+    const html = finalizeEmailHtml(compiledHtml, 'newReport', getEmailBranding(settings));
 
     return this.sendEmail({
       to: recipients,
@@ -260,11 +257,7 @@ export const emailService = {
 
     const subject = templateService.compileTemplate(template.subject, templateData);
     const compiledHtml = templateService.compileTemplate(template.html, templateData);
-    const withFooter = appendFooterToHtml(compiledHtml, 'statusChange');
-    const html = applyBrandColor(
-      withFooter,
-      settings.branding?.primaryColor || DEFAULT_BRAND_COLOR
-    );
+    const html = finalizeEmailHtml(compiledHtml, 'statusChange', getEmailBranding(settings));
 
     return this.sendEmail({
       to: recipients,
@@ -306,11 +299,7 @@ export const emailService = {
 
     const subject = templateService.compileTemplate(template.subject, templateData);
     const compiledHtml = templateService.compileTemplate(template.html, templateData);
-    const withFooter = appendFooterToHtml(compiledHtml, 'priorityChange');
-    const html = applyBrandColor(
-      withFooter,
-      settings.branding?.primaryColor || DEFAULT_BRAND_COLOR
-    );
+    const html = finalizeEmailHtml(compiledHtml, 'priorityChange', getEmailBranding(settings));
 
     return this.sendEmail({
       to: recipients,
@@ -351,11 +340,7 @@ export const emailService = {
 
     const subject = templateService.compileTemplate(template.subject, templateData);
     const compiledHtml = templateService.compileTemplate(template.html, templateData);
-    const withFooter = appendFooterToHtml(compiledHtml, 'reportDeleted');
-    const html = applyBrandColor(
-      withFooter,
-      settings.branding?.primaryColor || DEFAULT_BRAND_COLOR
-    );
+    const html = finalizeEmailHtml(compiledHtml, 'reportDeleted', getEmailBranding(settings));
 
     return this.sendEmail({
       to: recipients,
@@ -397,11 +382,7 @@ export const emailService = {
 
     const subject = templateService.compileTemplate(template.subject, templateData);
     const compiledHtml = templateService.compileTemplate(template.html, templateData);
-    const withFooter = appendFooterToHtml(compiledHtml, 'assignment');
-    const html = applyBrandColor(
-      withFooter,
-      settings.branding?.primaryColor || DEFAULT_BRAND_COLOR
-    );
+    const html = finalizeEmailHtml(compiledHtml, 'assignment', getEmailBranding(settings));
 
     return this.sendEmail({
       to: recipients,
@@ -448,10 +429,10 @@ export const emailService = {
 
     const subject = templateService.compileTemplate(template.subject, templateData);
     const compiledHtml = templateService.compileTemplate(template.html, templateData);
-    const withFooter = appendFooterToHtml(compiledHtml, 'reporterConfirmation');
-    const html = applyBrandColor(
-      withFooter,
-      settings.branding?.primaryColor || DEFAULT_BRAND_COLOR
+    const html = finalizeEmailHtml(
+      compiledHtml,
+      'reporterConfirmation',
+      getEmailBranding(settings)
     );
 
     return this.sendEmail({
@@ -505,10 +486,10 @@ export const emailService = {
 
     const subject = templateService.compileTemplate(template.subject, templateData);
     const compiledHtml = templateService.compileTemplate(template.html, templateData);
-    const withFooter = appendFooterToHtml(compiledHtml, 'reporterStatusChange');
-    const html = applyBrandColor(
-      withFooter,
-      settings.branding?.primaryColor || DEFAULT_BRAND_COLOR
+    const html = finalizeEmailHtml(
+      compiledHtml,
+      'reporterStatusChange',
+      getEmailBranding(settings)
     );
 
     return this.sendEmail({
@@ -559,10 +540,10 @@ export const emailService = {
 
     const subject = templateService.compileTemplate(template.subject, templateData);
     const compiledHtml = templateService.compileTemplate(template.html, templateData);
-    const withFooter = appendFooterToHtml(compiledHtml, 'reporterPriorityChange');
-    const html = applyBrandColor(
-      withFooter,
-      settings.branding?.primaryColor || DEFAULT_BRAND_COLOR
+    const html = finalizeEmailHtml(
+      compiledHtml,
+      'reporterPriorityChange',
+      getEmailBranding(settings)
     );
 
     return this.sendEmail({
@@ -617,11 +598,7 @@ export const emailService = {
 
     const subject = templateService.compileTemplate(template.subject, templateData);
     const compiledHtml = templateService.compileTemplate(template.html, templateData);
-    const withFooter = appendFooterToHtml(compiledHtml, 'reporterAssignment');
-    const html = applyBrandColor(
-      withFooter,
-      settings.branding?.primaryColor || DEFAULT_BRAND_COLOR
-    );
+    const html = finalizeEmailHtml(compiledHtml, 'reporterAssignment', getEmailBranding(settings));
 
     return this.sendEmail({
       to: [{ email: recipient }],
@@ -671,11 +648,7 @@ export const emailService = {
 
     const subject = templateService.compileTemplate(template.subject, templateData);
     const compiledHtml = templateService.compileTemplate(template.html, templateData);
-    const withFooter = appendFooterToHtml(compiledHtml, 'reporterMessage');
-    const html = applyBrandColor(
-      withFooter,
-      settings.branding?.primaryColor || DEFAULT_BRAND_COLOR
-    );
+    const html = finalizeEmailHtml(compiledHtml, 'reporterMessage', getEmailBranding(settings));
 
     return this.sendEmail({
       to: [{ email: recipient }],
@@ -724,11 +697,7 @@ export const emailService = {
     };
 
     const compiledHtml = templateService.compileTemplate(template.html, templateData);
-    const withFooter = appendFooterToHtml(compiledHtml, 'reporterMessage');
-    const html = applyBrandColor(
-      withFooter,
-      settings.branding?.primaryColor || DEFAULT_BRAND_COLOR
-    );
+    const html = finalizeEmailHtml(compiledHtml, 'reporterMessage', getEmailBranding(settings));
 
     const subject = `[CC] Message sent to reporter - ${report.title}`;
 
@@ -765,11 +734,11 @@ export const emailService = {
 
     const subject = templateService.compileTemplate(template.subject, templateData);
     const compiledHtml = templateService.compileTemplate(template.html, templateData);
-    const withFooter = appendFooterToHtml(compiledHtml, 'invitation');
-    const withFooterCompiled = templateService.compileTemplate(withFooter, templateData);
-    const html = applyBrandColor(
-      withFooterCompiled,
-      settings.branding?.primaryColor || DEFAULT_BRAND_COLOR
+    const html = finalizeEmailHtml(
+      compiledHtml,
+      'invitation',
+      getEmailBranding(settings),
+      templateData
     );
 
     return this.sendEmail({
@@ -819,11 +788,7 @@ export const emailService = {
 
       const subject = templateService.compileTemplate(template.subject, templateData);
       const compiledHtml = templateService.compileTemplate(template.html, templateData);
-      const withFooter = appendFooterToHtml(compiledHtml, 'testEmail');
-      const html = applyBrandColor(
-        withFooter,
-        settings.branding?.primaryColor || DEFAULT_BRAND_COLOR
-      );
+      const html = finalizeEmailHtml(compiledHtml, 'testEmail', getEmailBranding(settings));
 
       // Send test email
       await transporter.sendMail({
